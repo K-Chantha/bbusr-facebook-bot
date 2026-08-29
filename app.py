@@ -26,7 +26,7 @@ GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
  
 app = Flask(__name__)
 genai.configure(api_key=GEMINI_API_KEY)
-gemini_model = genai.GenerativeModel("gemini-2.5-flash")
+gemini_model = genai.GenerativeModel("gemini-3.6-flash")
  
 # ---------- ២. ផ្ទុក Knowledge Base ចូល memory ពេល server ចាប់ផ្តើម ----------
 def load_knowledge_base(folder="knowledge"):
