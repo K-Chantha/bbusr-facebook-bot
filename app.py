@@ -3,7 +3,7 @@ Facebook Messenger Bot សម្រាប់ឆ្លើយសំណួរសិ
 =====================================================
 រចនាសម្ព័ន្ធ៖
 1. Flask web server ទទួល webhook ពី Facebook
-2. អាន Knowledge Base ពី knowledge/*.txt និង knowledge/*.docx ដាក់ចូល Prompt ដោយផ្ទាល់
+2. អាន Knowledge Base ពី knowledge/*.txt, *.docx, *.pdf ដាក់ចូល Prompt ដោយផ្ទាល់
 3. ផ្ញើទៅ Google Gemini API ដើម្បីតែងចម្លើយជាភាសាធម្មជាតិ
 4. ផ្ញើចម្លើយត្រឡប់ទៅសិស្សតាម Facebook Send API
 """
@@ -17,6 +17,7 @@ import requests
 from flask import Flask, request, jsonify
 import google.generativeai as genai
 from docx import Document
+from pypdf import PdfReader
 
 # ---------- ១. ការកំណត់រចនាសម្ព័ន្ធ (Config) ----------
 # តម្លៃទាំងនេះមកពី Environment Variables (កុំដាក់ត្រង់នេះដោយផ្ទាល់ ពេល deploy ពិត)
@@ -42,6 +43,17 @@ def read_docx_text(filepath):
     return "\n".join(parts)
 
 
+def read_pdf_text(filepath):
+    """អានអត្ថបទចេញពីឯកសារ PDF (ទំព័រនីមួយៗ)។ PDF ជា Scan/រូបភាព នឹងអានមិនចេញអត្ថបទទេ"""
+    reader = PdfReader(filepath)
+    parts = []
+    for page in reader.pages:
+        page_text = page.extract_text() or ""
+        if page_text.strip():
+            parts.append(page_text.strip())
+    return "\n".join(parts)
+
+
 def extract_qa_blocks(content):
     """ញែកទម្រង់ 'Q: ... \\n A: ...' ចេញពីអត្ថបទ"""
     blocks = re.findall(r"Q:\s*(.+?)\s*\nA:\s*(.+?)(?=\n\n|\nQ:|\Z)", content, re.DOTALL)
@@ -56,14 +68,15 @@ def extract_qa_blocks(content):
 
 def load_knowledge_base(folder="knowledge"):
     """
-    អានឯកសារ .txt និង .docx ទាំងអស់ក្នុង folder knowledge/
+    អានឯកសារ .txt, .docx, .pdf ទាំងអស់ក្នុង folder knowledge/
     - បើឯកសារមានទម្រង់ 'Q: ... A: ...' នឹងញែកជា Q&A ដាច់ដោយឡែក
-    - បើគ្មានទម្រង់នេះ (ឧ. ឯកសារ Word ជាអត្ថបទសេរី) នឹងយកអត្ថបទទាំងមូលធ្វើជាព័ត៌មានយោង
+    - បើគ្មានទម្រង់នេះ (ឧ. ឯកសារ Word/PDF ជាអត្ថបទសេរី) នឹងយកអត្ថបទទាំងមូលធ្វើជាព័ត៌មានយោង
     """
     text_blocks = []
 
     txt_files = glob.glob(os.path.join(folder, "*.txt"))
     docx_files = glob.glob(os.path.join(folder, "*.docx"))
+    pdf_files = glob.glob(os.path.join(folder, "*.pdf"))
 
     for filepath in txt_files:
         with open(filepath, "r", encoding="utf-8") as f:
@@ -82,6 +95,21 @@ def load_knowledge_base(folder="knowledge"):
             content = read_docx_text(filepath)
         except Exception as e:
             print(f"មិនអាចអានឯកសារ {filepath}:", e)
+            continue
+        qa_texts = extract_qa_blocks(content)
+        if qa_texts:
+            text_blocks.extend(qa_texts)
+        else:
+            text_blocks.append(content.strip())
+
+    for filepath in pdf_files:
+        try:
+            content = read_pdf_text(filepath)
+        except Exception as e:
+            print(f"មិនអាចអានឯកសារ {filepath}:", e)
+            continue
+        if not content.strip():
+            print(f"ព្រមាន៖ {filepath} មិនមានអត្ថបទអានចេញបានទេ (ប្រហែលជា PDF ជា Scan/រូបភាព)")
             continue
         qa_texts = extract_qa_blocks(content)
         if qa_texts:
