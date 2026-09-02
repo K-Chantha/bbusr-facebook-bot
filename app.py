@@ -137,7 +137,7 @@ def call_gemini(prompt_text):
         model=GEMINI_MODEL_NAME,
         contents=prompt_text,
         config=types.GenerateContentConfig(
-            max_output_tokens=800,
+            max_output_tokens=2000,
             thinking_config=types.ThinkingConfig(thinking_level="low"),
         ),
     )
@@ -148,7 +148,7 @@ def generate_answer(user_message, debug=False):
         system_prompt = (
             "អ្នកគឺជាជំនួយការឆ្លើយសំណួរសម្រាប់សិស្សថ្នាក់ទី១២ដែលចាប់អារម្មណ៍ចូលរៀននៅ "
             "Build Bright University (BBU)។ ប្រើព័ត៌មានខាងក្រោមដើម្បីឆ្លើយសំណួរអ្នកប្រើប្រាស់ "
-            "ជាភាសាខ្មែរ ដោយសង្ខេប ច្បាស់លាស់ និងគួរសម។ "
+            "ជាភាសាខ្មែរ ដោយសង្ខេប ច្បាស់លាស់ និងគួរសម (សរសេរដូចសារឆាតខ្លីៗ មិនមែនអត្ថបទវែងលម្អិត)។ "
             "សរសេរចម្លើយឡើងវិញជាពាក្យផ្ទាល់ខ្លួន កុំចម្លងឃ្លាវែងៗពីព័ត៌មានយោងដោយផ្ទាល់ "
             "(សង្ខេប/សរសេរសារជាថ្មីជំនួសការចម្លង)។ "
             "បើព័ត៌មានមិនគ្រប់គ្រាន់ សូមណែនាំឲ្យទាក់ទងការិយាល័យចុះឈ្មោះដោយផ្ទាល់។\n\n"
