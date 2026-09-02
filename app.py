@@ -15,7 +15,8 @@ import glob
 import re
 import requests
 from flask import Flask, request, jsonify
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from docx import Document
 from pypdf import PdfReader
 
@@ -27,8 +28,8 @@ APP_SECRET = os.environ.get("APP_SECRET", "")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
 
 app = Flask(__name__)
-genai.configure(api_key=GEMINI_API_KEY)
-gemini_model = genai.GenerativeModel("gemini-3.6-flash")
+gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+GEMINI_MODEL_NAME = "gemini-3.6-flash"
 
 # ---------- ២. ផ្ទុក Knowledge Base ចូល memory ពេល server ចាប់ផ្តើម ----------
 def read_docx_text(filepath):
@@ -130,6 +131,18 @@ print("[Knowledge Base] ១៥០០ តួអក្សរដំបូង:\n" + 
 
 
 # ---------- ៣. ហៅ Gemini API ដើម្បីតែងចម្លើយ ----------
+def call_gemini(prompt_text):
+    """ហៅ Gemini ជាមួយ thinking_level='low' ដើម្បីកុំឲ្យ 'ការគិត'ស៊ីអស់ Token budget"""
+    return gemini_client.models.generate_content(
+        model=GEMINI_MODEL_NAME,
+        contents=prompt_text,
+        config=types.GenerateContentConfig(
+            max_output_tokens=800,
+            thinking_config=types.ThinkingConfig(thinking_level="low"),
+        ),
+    )
+
+
 def generate_answer(user_message, debug=False):
     if knowledge_base_text:
         system_prompt = (
@@ -149,10 +162,7 @@ def generate_answer(user_message, debug=False):
         )
 
     full_prompt = f"{system_prompt}\n\nសំណួរអ្នកប្រើប្រាស់៖ {user_message}"
-    response = gemini_model.generate_content(
-        full_prompt,
-        generation_config=genai.types.GenerationConfig(max_output_tokens=800),
-    )
+    response = call_gemini(full_prompt)
 
     # ពិនិត្យមូលហេតុបញ្ឈប់ (finish_reason) — ជួយវិនិច្ឆ័យពេលចម្លើយដាច់កណ្តាល
     finish_reason = None
@@ -162,15 +172,12 @@ def generate_answer(user_message, debug=False):
         pass
 
     if debug:
-        return {"text": getattr(response, "text", ""), "finish_reason": finish_reason}
+        return {"text": getattr(response, "text", "") or "", "finish_reason": finish_reason}
 
     if finish_reason == "RECITATION":
         # Gemini បញ្ឈប់ព្រោះកំពុងចម្លងអត្ថបទដើមច្រើនពេក — សាកល្បងម្តងទៀតដោយសុំសង្ខេបខ្លីជាង
         retry_prompt = full_prompt + "\n\n(សូមឆ្លើយខ្លីជាងនេះ ដោយសរសេរជាពាក្យផ្ទាល់ខ្លួន កុំចម្លងឃ្លាវែងៗពីព័ត៌មានយោង)"
-        response = gemini_model.generate_content(
-            retry_prompt,
-            generation_config=genai.types.GenerationConfig(max_output_tokens=800),
-        )
+        response = call_gemini(retry_prompt)
 
     try:
         return response.text
@@ -272,10 +279,3 @@ def debug_ask():
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
-
-
-
-if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
-
