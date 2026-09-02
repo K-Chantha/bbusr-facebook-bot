@@ -130,13 +130,15 @@ print("[Knowledge Base] ១៥០០ តួអក្សរដំបូង:\n" + 
 
 
 # ---------- ៣. ហៅ Gemini API ដើម្បីតែងចម្លើយ ----------
-def generate_answer(user_message):
+def generate_answer(user_message, debug=False):
     if knowledge_base_text:
         system_prompt = (
             "អ្នកគឺជាជំនួយការឆ្លើយសំណួរសម្រាប់សិស្សថ្នាក់ទី១២ដែលចាប់អារម្មណ៍ចូលរៀននៅ "
             "Build Bright University (BBU)។ ប្រើព័ត៌មានខាងក្រោមដើម្បីឆ្លើយសំណួរអ្នកប្រើប្រាស់ "
-            "ជាភាសាខ្មែរ ដោយសង្ខេប ច្បាស់លាស់ និងគួរសម។ បើព័ត៌មានមិនគ្រប់គ្រាន់ សូមណែនាំឲ្យទាក់ទង"
-            "ការិយាល័យចុះឈ្មោះដោយផ្ទាល់។\n\n"
+            "ជាភាសាខ្មែរ ដោយសង្ខេប ច្បាស់លាស់ និងគួរសម។ "
+            "សរសេរចម្លើយឡើងវិញជាពាក្យផ្ទាល់ខ្លួន កុំចម្លងឃ្លាវែងៗពីព័ត៌មានយោងដោយផ្ទាល់ "
+            "(សង្ខេប/សរសេរសារជាថ្មីជំនួសការចម្លង)។ "
+            "បើព័ត៌មានមិនគ្រប់គ្រាន់ សូមណែនាំឲ្យទាក់ទងការិយាល័យចុះឈ្មោះដោយផ្ទាល់។\n\n"
             f"ព័ត៌មានយោង៖\n{knowledge_base_text}"
         )
     else:
@@ -149,9 +151,31 @@ def generate_answer(user_message):
     full_prompt = f"{system_prompt}\n\nសំណួរអ្នកប្រើប្រាស់៖ {user_message}"
     response = gemini_model.generate_content(
         full_prompt,
-        generation_config=genai.types.GenerationConfig(max_output_tokens=400),
+        generation_config=genai.types.GenerationConfig(max_output_tokens=800),
     )
-    return response.text
+
+    # ពិនិត្យមូលហេតុបញ្ឈប់ (finish_reason) — ជួយវិនិច្ឆ័យពេលចម្លើយដាច់កណ្តាល
+    finish_reason = None
+    try:
+        finish_reason = response.candidates[0].finish_reason.name
+    except Exception:
+        pass
+
+    if debug:
+        return {"text": getattr(response, "text", ""), "finish_reason": finish_reason}
+
+    if finish_reason == "RECITATION":
+        # Gemini បញ្ឈប់ព្រោះកំពុងចម្លងអត្ថបទដើមច្រើនពេក — សាកល្បងម្តងទៀតដោយសុំសង្ខេបខ្លីជាង
+        retry_prompt = full_prompt + "\n\n(សូមឆ្លើយខ្លីជាងនេះ ដោយសរសេរជាពាក្យផ្ទាល់ខ្លួន កុំចម្លងឃ្លាវែងៗពីព័ត៌មានយោង)"
+        response = gemini_model.generate_content(
+            retry_prompt,
+            generation_config=genai.types.GenerationConfig(max_output_tokens=800),
+        )
+
+    try:
+        return response.text
+    except Exception:
+        return "សូមទោស! ខ្ញុំមិនអាចបង្កើតចម្លើយពេញលេញបានទេ សូមសាកសួរម្តងទៀតដោយប្រើសំណួរខ្លីជាង ឬទាក់ទងការិយាល័យដោយផ្ទាល់។"
 
 
 # ---------- ៤. ផ្ញើសារត្រឡប់ទៅ Facebook ----------
@@ -239,10 +263,16 @@ def debug_ask():
     if not question:
         return "សូមដាក់សំណួរជាមួយ ?q=សំណួររបស់អ្នក ក្នុង URL", 400
     try:
-        answer = generate_answer(question)
+        result = generate_answer(question, debug=True)
     except Exception as e:
         return f"Error: {e}", 500
-    return {"question": question, "answer": answer}, 200
+    return {"question": question, "answer": result["text"], "finish_reason": result["finish_reason"]}, 200
+
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
+
 
 
 if __name__ == "__main__":
