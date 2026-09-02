@@ -117,10 +117,16 @@ def load_knowledge_base(folder="knowledge"):
         else:
             text_blocks.append(content.strip())
 
+    all_files = txt_files + [f for f in docx_files if not os.path.basename(f).startswith("~$")] + pdf_files
+    print(f"[Knowledge Base] ឯកសារដែលរកឃើញ ({len(all_files)}): {[os.path.basename(f) for f in all_files]}")
+    print(f"[Knowledge Base] ចំនួន block សរុប: {len(text_blocks)}")
+
     return "\n\n".join(t for t in text_blocks if t)
 
 
 knowledge_base_text = load_knowledge_base()
+print(f"[Knowledge Base] ចំនួនអក្សរសរុបដែលផ្ទុកបាន: {len(knowledge_base_text)}")
+print("[Knowledge Base] ១៥០០ តួអក្សរដំបូង:\n" + knowledge_base_text[:1500])
 
 
 # ---------- ៣. ហៅ Gemini API ដើម្បីតែងចម្លើយ ----------
@@ -217,6 +223,29 @@ def health_check():
     return "BBU Facebook Bot is running.", 200
 
 
+# ---------- ៩. Debug — មើល Knowledge Base ដែលផ្ទុកបានពិត (សម្រាប់ត្រួតពិនិត្យប៉ុណ្ណោះ) ----------
+@app.route("/debug/knowledge", methods=["GET"])
+def debug_knowledge():
+    return {
+        "total_characters": len(knowledge_base_text),
+        "content": knowledge_base_text,
+    }, 200
+
+
+# ---------- ១០. Debug — សាកល្បងសួរសំណួរដោយផ្ទាល់តាម Browser (មិនចាំបាច់ឆ្លងកាត់ Facebook) ----------
+@app.route("/debug/ask", methods=["GET"])
+def debug_ask():
+    question = request.args.get("q", "")
+    if not question:
+        return "សូមដាក់សំណួរជាមួយ ?q=សំណួររបស់អ្នក ក្នុង URL", 400
+    try:
+        answer = generate_answer(question)
+    except Exception as e:
+        return f"Error: {e}", 500
+    return {"question": question, "answer": answer}, 200
+
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)
+
